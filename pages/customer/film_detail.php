@@ -10,9 +10,11 @@ $film->execute([$id]);
 $film = $film->fetch();
 if (!$film) { header('Location: home.php'); exit; }
 
+
 $today = date('Y-m-d');
-$showtimes = $db->prepare("SELECT * FROM showtimes WHERE film_id=? AND show_date>=? ORDER BY show_date, show_time");
-$showtimes->execute([$id, $today]);
+// Ubah ini sementara untuk testing
+$showtimes = $db->prepare("SELECT * FROM showtimes WHERE film_id=? ORDER BY show_date, show_time");
+$showtimes->execute([$id]);
 $showtimes = $showtimes->fetchAll();
 ?>
 <!DOCTYPE html>
