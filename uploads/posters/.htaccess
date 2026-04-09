@@ -1,0 +1,6 @@
+# Prevent PHP execution in posters directory
+<FilesMatch "\.php$">
+    Order Deny,Allow
+    Deny from all
+</FilesMatch>
+Options -Indexes
