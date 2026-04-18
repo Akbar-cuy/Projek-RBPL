@@ -5,8 +5,7 @@ requireRole('chef');
 
 $db = getDB();
 
-// Handle status updates
-if ($_SERVER['REQUEST_METHOD']==='POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['start_cook'])) {
         $db->prepare("UPDATE order_fnb SET cook_status='cooking' WHERE id=?")->execute([$_POST['fnb_id']]);
     }
@@ -16,150 +15,568 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (isset($_POST['mark_done'])) {
         $db->prepare("UPDATE order_fnb SET cook_status='done' WHERE id=?")->execute([$_POST['fnb_id']]);
     }
-    header("Location: kitchen.php"); exit;
+    $back = isset($_GET['tab']) ? '?tab=' . $_GET['tab'] : '';
+    header("Location: kitchen.php" . $back);
+    exit;
 }
 
 $tab = $_GET['tab'] ?? 'new';
 
-function getFnbByStatus($db, $status) {
-    $sql = "SELECT of.*, m.name as item_name, u.name as cname, o.id as order_id
-            FROM order_fnb of JOIN fnb_menu m ON of.fnb_id=m.id 
-            JOIN orders o ON of.order_id=o.id JOIN users u ON o.user_id=u.id
-            WHERE of.cook_status=? ORDER BY o.created_at ASC";
-    $stmt = $db->prepare($sql); $stmt->execute([$status]);
+function getFnbByStatus($db, $status)
+{
+    $sql = "SELECT of.*, m.name as item_name, u.name as cname, o.id as order_id, o.created_at as order_time
+            FROM order_fnb of
+            JOIN fnb_menu m ON of.fnb_id = m.id
+            JOIN orders o ON of.order_id = o.id
+            JOIN users u ON o.user_id = u.id
+            WHERE of.cook_status = ?
+            ORDER BY o.created_at ASC";
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$status]);
     return $stmt->fetchAll();
+}
+
+function groupByOrder($items)
+{
+    $grouped = [];
+    foreach ($items as $item) {
+        $grouped[$item['order_id']][] = $item;
+    }
+    return $grouped;
 }
 
 $newOrders = getFnbByStatus($db, 'new');
 $cooking = getFnbByStatus($db, 'cooking');
 $ready = getFnbByStatus($db, 'ready');
 $done = getFnbByStatus($db, 'done');
-
 $totalToday = count($newOrders) + count($cooking) + count($ready) + count($done);
+
+$tabs = [
+    'new' => ['label' => 'Baru', 'count' => count($newOrders), 'orders' => $newOrders],
+    'cooking' => ['label' => 'Masak', 'count' => count($cooking), 'orders' => $cooking],
+    'ready' => ['label' => 'Siap', 'count' => count($ready), 'orders' => $ready],
+    'done' => ['label' => 'Selesai', 'count' => count($done), 'orders' => $done],
+];
+
+$activeItems = $tabs[$tab]['orders'] ?? $newOrders;
+$activeGrouped = groupByOrder($activeItems);
 ?>
-<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chef Kitchen - TursMovie</title><?= getBaseStyles() ?>
-<style>
-.mobile-wrap{max-width:480px;margin:0 auto;min-height:100vh;padding-bottom:80px}
-.chef-header{background:linear-gradient(135deg,#1a0a00,#2d1500);border-bottom:1px solid rgba(245,158,11,0.2);padding:16px 20px}
-.chef-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.chef-name{font-size:0.82rem;color:rgba(245,158,11,0.8)}
-.chef-title{font-size:1.3rem;font-weight:800}
-.chef-stats{display:flex;gap:16px;margin-top:12px}
-.chef-stat{text-align:center;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:8px 16px}
-.chef-stat-num{font-size:1.2rem;font-weight:800;color:#f59e0b}
-.chef-stat-lbl{font-size:0.7rem;color:var(--text-muted)}
-.tab-nav{display:flex;background:var(--bg-card);border-bottom:1px solid var(--border)}
-.tab-item{flex:1;padding:12px;text-align:center;font-size:0.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:none;border-bottom:2px solid transparent;transition:all 0.2s}
-.tab-item.active{color:#f59e0b;border-bottom-color:#f59e0b}
-.tab-count{background:var(--red);color:white;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:4px}
-.content{padding:16px}
-.order-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
-.order-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
-.order-id{font-size:0.75rem;color:var(--text-muted)}
-.customer-name{font-size:0.95rem;font-weight:700}
-.order-time{font-size:0.75rem;color:var(--text-muted)}
-.priority-badge{font-size:0.7rem;font-weight:700;padding:3px 8px;border-radius:6px}
-.priority-1{background:rgba(230,21,21,0.2);color:var(--red)}
-.items-list{background:var(--bg-card2);border-radius:10px;padding:10px;margin-bottom:10px}
-.item-row{font-size:0.84rem;padding:4px 0;display:flex;align-items:center;gap:6px}
-.item-row::before{content:'•';color:#f59e0b}
-.action-btns{display:flex;gap:8px}
-.empty-state{text-align:center;padding:48px 20px;color:var(--text-muted)}
-.empty-state svg{margin:0 auto 12px;display:block}
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(15,17,23,0.95);backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;z-index:100;padding:8px 0 12px}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px;text-decoration:none;color:var(--text-muted);font-size:0.7rem;font-weight:600}
-.nav-item.active{color:#f59e0b}
-.nav-item svg{width:22px;height:22px}
-.status-bubble{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:0.75rem;font-weight:600}
-.bubble-new{background:rgba(245,158,11,0.15);color:#f59e0b}
-.bubble-cooking{background:rgba(230,21,21,0.15);color:var(--red)}
-.bubble-ready{background:rgba(34,197,94,0.15);color:var(--green)}
-.bubble-done{background:rgba(255,255,255,0.08);color:var(--text-muted)}
-</style></head><body>
-<div class="mobile-wrap">
-    <div class="chef-header">
-        <div class="chef-header-row">
-            <div><div class="chef-name">Chef Kitchen</div><div class="chef-title"><?= htmlspecialchars($_SESSION['name']) ?></div></div>
-        </div>
-        <div class="chef-stats">
-            <div class="chef-stat"><div class="chef-stat-num"><?= count($newOrders) ?></div><div class="chef-stat-lbl">Baru</div></div>
-            <div class="chef-stat"><div class="chef-stat-num"><?= count($cooking) ?></div><div class="chef-stat-lbl">Masak</div></div>
-            <div class="chef-stat"><div class="chef-stat-num"><?= count($ready) ?></div><div class="chef-stat-lbl">Siap</div></div>
-            <div class="chef-stat"><div class="chef-stat-num"><?= $totalToday ?></div><div class="chef-stat-lbl">Total</div></div>
-        </div>
-    </div>
+<!DOCTYPE html>
+<html lang="id">
 
-    <div class="tab-nav">
-        <a href="kitchen.php?tab=new" class="tab-item <?= $tab==='new'?'active':'' ?>">Baru<?php if(count($newOrders)):?><span class="tab-count"><?=count($newOrders)?></span><?php endif;?></a>
-        <a href="kitchen.php?tab=cooking" class="tab-item <?= $tab==='cooking'?'active':'' ?>">Masak<?php if(count($cooking)):?><span class="tab-count"><?=count($cooking)?></span><?php endif;?></a>
-        <a href="kitchen.php?tab=ready" class="tab-item <?= $tab==='ready'?'active':'' ?>">Siap<?php if(count($ready)):?><span class="tab-count"><?=count($ready)?></span><?php endif;?></a>
-        <a href="kitchen.php?tab=done" class="tab-item <?= $tab==='done'?'active':'' ?>">Selesai</a>
-    </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chef Kitchen</title>
+    <?= getBaseStyles() ?>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    <div class="content">
-        <?php
-        $items = match($tab) {
-            'new' => $newOrders,
-            'cooking' => $cooking,
-            'ready' => $ready,
-            'done' => $done,
-            default => $newOrders
-        };
-        
-        // Group by order_id
-        $grouped = [];
-        foreach ($items as $item) { $grouped[$item['order_id']][] = $item; }
-        
-        if (empty($grouped)):
-        ?>
-        <div class="empty-state">
-            <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            Tidak ada pesanan
-        </div>
-        <?php else: ?>
-        <?php $priority=1; foreach ($grouped as $oid => $orderItems):
-            $first = $orderItems[0]; ?>
-        <div class="order-card">
-            <div class="order-header">
+        body {
+            background: #f2f3f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .wrap {
+            max-width: 480px;
+            margin: 0 auto;
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            background: #E7000B;
+            padding: 20px 20px 0;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 22px;
+        }
+
+        .header-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.2;
+        }
+
+        .header-sub {
+            font-size: 0.77rem;
+            color: rgba(255, 255, 255, 0.72);
+            margin-top: 1px;
+        }
+
+        .logout-btn {
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+
+        .logout-btn svg {
+            width: 17px;
+            height: 17px;
+            stroke: #fff;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        /* ── TAB BUTTONS ── */
+        .tab-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            border-radius: 12px 12px 0 0;
+            padding: 10px 6px 14px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+            position: relative;
+            transition: background 0.15s;
+        }
+
+        .tab-btn.active {
+            background: #fff;
+        }
+
+        .tab-btn-num {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1;
+            display: block;
+        }
+
+        .tab-btn.active .tab-btn-num {
+            color: #E7000B;
+        }
+
+        .tab-btn-lbl {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.72);
+            margin-top: 3px;
+            display: block;
+        }
+
+        .tab-btn.active .tab-btn-lbl {
+            color: #999;
+        }
+
+        /* Indikator titik kuning untuk tab ada pesanan tapi tidak aktif */
+        .tab-dot {
+            position: absolute;
+            top: 7px;
+            right: 9px;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #FFD600;
+        }
+
+        /* ── CONTENT ── */
+        .content {
+            padding: 14px;
+        }
+
+        .section-bar {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 12px;
+        }
+
+        .section-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .dot-new {
+            background: #F9A825;
+        }
+
+        .dot-cooking {
+            background: #1565C0;
+        }
+
+        .dot-ready {
+            background: #2E7D32;
+        }
+
+        .dot-done {
+            background: #9E9E9E;
+        }
+
+        .section-label {
+            font-size: 0.86rem;
+            font-weight: 700;
+            color: #222;
+        }
+
+        .section-count {
+            margin-left: auto;
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+
+        /* ── ORDER CARD ── */
+        .order-card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .card-name {
+            font-size: 0.93rem;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .card-id {
+            font-size: 0.72rem;
+            color: #bbb;
+            margin-top: 2px;
+        }
+
+        .card-time {
+            font-size: 0.72rem;
+            color: #bbb;
+            margin-top: 2px;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .badge-new {
+            background: #FFF9C4;
+            color: #F57F17;
+        }
+
+        .badge-cooking {
+            background: #BBDEFB;
+            color: #0D47A1;
+        }
+
+        .badge-ready {
+            background: #C8E6C9;
+            color: #1B5E20;
+        }
+
+        .badge-done {
+            background: #F5F5F5;
+            color: #757575;
+        }
+
+        .priority-tag {
+            font-size: 0.65rem;
+            font-weight: 700;
+            background: #FFF3E0;
+            color: #E65100;
+            padding: 2px 7px;
+            border-radius: 5px;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .items-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+        }
+
+        .item-row {
+            font-size: 0.82rem;
+            color: #444;
+            padding: 3px 0;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .item-dot {
+            width: 5px;
+            height: 5px;
+            background: #E7000B;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Buttons */
+        .btn-cook {
+            width: 100%;
+            padding: 12px;
+            background: #E7000B;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-cook:hover {
+            background: #C0000A;
+        }
+
+        .btn-ready {
+            width: 100%;
+            padding: 12px;
+            background: #fff;
+            color: #2E7D32;
+            border: 2px solid #2E7D32;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-ready:hover {
+            background: #f1f8f1;
+        }
+
+        .btn-done {
+            width: 100%;
+            padding: 12px;
+            background: #37474F;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-done:hover {
+            background: #263238;
+        }
+
+        /* Empty */
+        .empty {
+            text-align: center;
+            padding: 48px 20px;
+            color: #ccc;
+            font-size: 0.84rem;
+        }
+
+        /* ── BOTTOM NAV ── */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            background: #fff;
+            border-top: 1px solid #eee;
+            display: flex;
+            z-index: 100;
+            padding: 8px 0 14px;
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            text-decoration: none;
+            color: #bbb;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: color 0.15s;
+        }
+
+        .nav-item.active {
+            color: #E7000B;
+        }
+
+        .nav-item svg {
+            width: 22px;
+            height: 22px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-top">
                 <div>
-                    <div class="customer-name"><?= htmlspecialchars($first['cname']) ?></div>
-                    <div class="order-id">Order #<?= $oid ?></div>
+                    <div class="header-title">Chef Kitchen</div>
+                    <div class="header-sub"><?= htmlspecialchars($_SESSION['name']) ?></div>
                 </div>
-                <div style="text-align:right">
-                    <span class="status-bubble bubble-<?= $first['cook_status'] ?>"><?= ucfirst($first['cook_status']==='new'?'Baru':($first['cook_status']==='cooking'?'Sedang Dimasak':($first['cook_status']==='ready'?'Siap':'Selesai'))) ?></span>
-                    <?php if ($tab==='new'): ?><br><span class="priority-badge priority-1" style="margin-top:4px;display:inline-block">Prioritas <?= $priority ?></span><?php endif; ?>
-                </div>
+                <a href="../../logout.php" class="logout-btn" title="Keluar">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                </a>
             </div>
-            <div class="items-list">
-                <?php foreach ($orderItems as $fi): ?>
-                <div class="item-row"><?= $fi['quantity'] ?>x <?= htmlspecialchars($fi['item_name']) ?></div>
+
+            <div class="tab-row">
+                <?php foreach ($tabs as $key => $t): ?>
+                    <a href="kitchen.php?tab=<?= $key ?>" class="tab-btn <?= $tab === $key ? 'active' : '' ?>">
+                        <?php if ($tab !== $key && $t['count'] > 0): ?>
+                            <span class="tab-dot"></span>
+                        <?php endif; ?>
+                        <span class="tab-btn-num"><?= $t['count'] ?></span>
+                        <span class="tab-btn-lbl"><?= $t['label'] ?></span>
+                    </a>
                 <?php endforeach; ?>
             </div>
-            <?php if ($tab==='new'): ?>
-            <form method="POST" class="action-btns">
-                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
-                <?php foreach($orderItems as $fi): if($fi['id']!==$first['id']): ?><input type="hidden" name="extra_ids[]" value="<?= $fi['id'] ?>"><?php endif; endforeach; ?>
-                <button name="start_cook" class="btn btn-primary" style="flex:1">🍳 Mulai Memasak</button>
-            </form>
-            <?php elseif ($tab==='cooking'): ?>
-            <form method="POST" class="action-btns">
-                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
-                <button name="mark_ready" class="btn btn-success" style="flex:1">✓ Tandai Siap</button>
-            </form>
-            <?php elseif ($tab==='ready'): ?>
-            <form method="POST" class="action-btns">
-                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
-                <button name="mark_done" class="btn btn-outline" style="flex:1">📦 Selesai & Ambil</button>
-            </form>
-            <?php endif; ?>
         </div>
-        <?php $priority++; endforeach; ?>
-        <?php endif; ?>
+
+        <!-- CONTENT -->
+        <div class="content">
+
+            <?php
+            $sectionMeta = [
+                'new' => ['dot' => 'new', 'label' => 'Pesanan Baru'],
+                'cooking' => ['dot' => 'cooking', 'label' => 'Sedang Dimasak'],
+                'ready' => ['dot' => 'ready', 'label' => 'Siap Diambil'],
+                'done' => ['dot' => 'done', 'label' => 'Selesai'],
+            ];
+            $meta = $sectionMeta[$tab];
+            ?>
+
+            <div class="section-bar">
+                <span class="section-dot dot-<?= $meta['dot'] ?>"></span>
+                <span class="section-label"><?= $meta['label'] ?></span>
+                <span class="section-count"><?= count($activeGrouped) ?> pesanan</span>
+            </div>
+
+            <?php if (empty($activeGrouped)): ?>
+                <div class="empty">Tidak ada pesanan</div>
+
+            <?php else:
+                $priority = 1;
+                foreach ($activeGrouped as $oid => $orderItems):
+                    $first = $orderItems[0];
+                    $timeStr = date('H:i', strtotime($first['order_time']));
+                    $badgeMap = [
+                        'new' => ['class' => 'badge-new', 'text' => 'Pending'],
+                        'cooking' => ['class' => 'badge-cooking', 'text' => 'Sedang Dimasak'],
+                        'ready' => ['class' => 'badge-ready', 'text' => 'Siap'],
+                        'done' => ['class' => 'badge-done', 'text' => 'Selesai'],
+                    ];
+                    $bInfo = $badgeMap[$first['cook_status']];
+                    ?>
+                    <div class="order-card">
+                        <div class="card-top">
+                            <div>
+                                <div class="card-name"><?= htmlspecialchars($first['cname']) ?></div>
+                                <div class="card-id">Order #<?= $oid ?></div>
+                                <div class="card-time"><?= $timeStr ?></div>
+                            </div>
+                            <div style="text-align:right">
+                                <span class="badge <?= $bInfo['class'] ?>"><?= $bInfo['text'] ?></span>
+                                <?php if ($tab === 'new'): ?>
+                                    <br><span class="priority-tag">Prioritas <?= $priority ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="items-box">
+                            <?php foreach ($orderItems as $fi): ?>
+                                <div class="item-row">
+                                    <span class="item-dot"></span>
+                                    <?= $fi['quantity'] ?>x <?= htmlspecialchars($fi['item_name']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <?php if ($tab === 'new'): ?>
+                            <form method="POST" action="kitchen.php?tab=new">
+                                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
+                                <button type="submit" name="start_cook" class="btn-cook">Mulai Memasak</button>
+                            </form>
+
+                        <?php elseif ($tab === 'cooking'): ?>
+                            <form method="POST" action="kitchen.php?tab=cooking">
+                                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
+                                <button type="submit" name="mark_ready" class="btn-ready">Tandai Siap</button>
+                            </form>
+
+                        <?php elseif ($tab === 'ready'): ?>
+                            <form method="POST" action="kitchen.php?tab=ready">
+                                <input type="hidden" name="fnb_id" value="<?= $first['id'] ?>">
+                                <button type="submit" name="mark_done" class="btn-done">Selesai &amp; Ambil</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                    <?php $priority++; endforeach; endif; ?>
+
+        </div>
     </div>
-</div>
-<nav class="bottom-nav">
-    <a class="nav-item active" href="kitchen.php"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>Dapur</a>
-    <a class="nav-item" href="../../logout.php"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Keluar</a>
-</nav>
-</body></html>
+
+    <nav class="bottom-nav">
+        <a class="nav-item active" href="kitchen.php">
+            <svg viewBox="0 0 24 24">
+                <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" />
+                <line x1="6" y1="2" x2="6" y2="4" />
+                <line x1="10" y1="2" x2="10" y2="4" />
+                <line x1="14" y1="2" x2="14" y2="4" />
+            </svg>
+            Pesanan
+        </a>
+        <a class="nav-item" href="../../logout.php">
+            <svg viewBox="0 0 24 24">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Keluar
+        </a>
+    </nav>
+
+</body>
+
+</html>
