@@ -24,13 +24,18 @@ $tab = $_GET['tab'] ?? 'new';
 
 function getFnbByStatus($db, $status)
 {
-    $sql = "SELECT of.*, m.name as item_name, u.name as cname, o.id as order_id, o.created_at as order_time
+    // Gunakan LEFT JOIN agar order tetap muncul meski user_id NULL
+    // Gunakan COALESCE untuk mengambil guest_name jika u.name kosong
+    $sql = "SELECT of.*, m.name as item_name, 
+            COALESCE(u.name, o.guest_name) as cname, 
+            o.id as order_id, o.created_at as order_time
             FROM order_fnb of
             JOIN fnb_menu m ON of.fnb_id = m.id
             JOIN orders o ON of.order_id = o.id
-            JOIN users u ON o.user_id = u.id
+            LEFT JOIN users u ON o.user_id = u.id 
             WHERE of.cook_status = ?
             ORDER BY o.created_at ASC";
+            
     $stmt = $db->prepare($sql);
     $stmt->execute([$status]);
     return $stmt->fetchAll();
