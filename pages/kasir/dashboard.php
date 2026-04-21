@@ -458,7 +458,6 @@ $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pend
               </svg></div>
             <div class="stat-label">Penjualan Hari Ini</div>
             <div class="stat-value" style="font-size:1.2rem"><?= formatRupiah($salesToday) ?></div>
-            <div class="stat-trend trend-up">↑ 12.5% dari kemarin</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background:rgba(59,130,246,0.15)"><svg width="22" height="22" fill="none" stroke="#3b82f6" stroke-width="2" viewBox="0 0 24 24">
@@ -467,7 +466,6 @@ $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pend
               </svg></div>
             <div class="stat-label">Total Transaksi</div>
             <div class="stat-value"><?= $transToday ?></div>
-            <div class="stat-trend trend-up">↑ +8 dari kemarin</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background:rgba(168,85,247,0.15)"><svg width="22" height="22" fill="none" stroke="#a855f7" stroke-width="2" viewBox="0 0 24 24">
@@ -476,7 +474,6 @@ $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pend
               </svg></div>
             <div class="stat-label">Tiket Terjual</div>
             <div class="stat-value"><?= $ticketsSold ?></div>
-            <div class="stat-trend trend-up">↑ +15 dari kemarin</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background:rgba(245,158,11,0.15)"><svg width="22" height="22" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24">
@@ -485,7 +482,6 @@ $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pend
               </svg></div>
             <div class="stat-label">F&B Terjual</div>
             <div class="stat-value"><?= $fnbSold ?></div>
-            <div class="stat-trend trend-down">↓ -3 dari kemarin</div>
           </div>
         </div>
 
