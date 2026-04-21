@@ -6,12 +6,26 @@ requireRole('customer');
 $db = getDB();
 
 // Handle POST - process payment
+// Handle POST - process payment
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $showtime_id = intval($_POST['showtime_id']);
     $seats = $_POST['seats'];
     $cartJson = $_POST['cart'];
     $total = intval($_POST['total']);
-    $payment_method = $_POST['payment_method'] ?? 'ewallet';
+    
+    // --- TAMBAHKAN BARIS INI ---
+    $payment_method = $_POST['payment_method'] ?? 'ewallet'; 
+    // ---------------------------
+
+    $payStatus = 'paid';       // Default
+    $orderStatus = 'confirmed'; // Default
+
+    // Sekarang variabel $payment_method sudah ada isinya, logika ini akan jalan
+    if ($payment_method === 'cash') {
+        $payStatus = 'unpaid';    
+        $orderStatus = 'pending'; 
+    }
+    
     $cart = json_decode($cartJson, true) ?? [];
 
     $order_id = 'ORD-' . time();
@@ -19,9 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user_id = $_SESSION['user_id'];
 
     // Create order
-    $stmt = $db->prepare("INSERT INTO orders (id,user_id,showtime_id,total_amount,payment_method,payment_status,order_status,qr_code) VALUES (?,?,?,?,?,'paid','confirmed',?)");
-    $stmt->execute([$order_id, $user_id, $showtime_id, $total, $payment_method, $qr_code]);
-
+    $stmt = $db->prepare("INSERT INTO orders (id,user_id,showtime_id,total_amount,payment_method,payment_status,order_status,qr_code) VALUES (?,?,?,?,?,?,?,?)");
+    // Pastikan variabel $payment_method dimasukkan ke dalam execute
+    $stmt->execute([$order_id, $user_id, $showtime_id, $total, $payment_method, $payStatus, $orderStatus, $qr_code]);
     // Save seats
     $seatArr = array_filter(explode(',', $seats));
     foreach ($seatArr as $seat) {

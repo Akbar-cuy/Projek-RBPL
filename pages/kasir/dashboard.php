@@ -6,21 +6,52 @@ requireRole('kasir');
 $db = getDB();
 $today = date('Y-m-d');
 
+// 1. Penjualan Hari Ini
 $salesToday = $db->prepare("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE DATE(created_at)=? AND payment_status='paid'");
 $salesToday->execute([$today]);
 $salesToday = $salesToday->fetchColumn();
-$transToday = $db->prepare("SELECT COUNT(*) FROM orders WHERE DATE(created_at)=?");
+
+// 2. Total Transaksi (Hanya yang lunas)
+$transToday = $db->prepare("SELECT COUNT(*) FROM orders WHERE DATE(created_at)=? AND payment_status='paid'");
 $transToday->execute([$today]);
 $transToday = $transToday->fetchColumn();
-$ticketsSold = $db->prepare("SELECT COUNT(*) FROM order_seats os JOIN orders o ON os.order_id=o.id WHERE DATE(o.created_at)=?");
+
+// 3. Tiket Terjual (Hanya dari order yang sudah lunas)
+$ticketsSold = $db->prepare("SELECT COUNT(os.id) FROM order_seats os 
+                             JOIN orders o ON os.order_id = o.id 
+                             WHERE DATE(o.created_at)=? AND o.payment_status='paid'");
 $ticketsSold->execute([$today]);
 $ticketsSold = $ticketsSold->fetchColumn();
-$fnbSold = $db->prepare("SELECT COALESCE(SUM(quantity),0) FROM order_fnb of JOIN orders o ON of.order_id=o.id WHERE DATE(o.created_at)=?");
+
+// 4. F&B Terjual (Hanya dari order yang sudah lunas)
+$fnbSold = $db->prepare("SELECT COALESCE(SUM(of.quantity),0) FROM order_fnb of 
+                         JOIN orders o ON of.order_id = o.id 
+                         WHERE DATE(o.created_at)=? AND o.payment_status='paid'");
 $fnbSold->execute([$today]);
 $fnbSold = $fnbSold->fetchColumn();
-$recentOrders = $db->query("SELECT o.*, u.name as cname, f.title FROM orders o JOIN users u ON o.user_id=u.id JOIN showtimes s ON o.showtime_id=s.id JOIN films f ON s.film_id=f.id ORDER BY o.created_at DESC LIMIT 5")->fetchAll();
-$topFilms = $db->query("SELECT f.title, COUNT(os.id) as tickets, COALESCE(SUM(o.total_amount),0) as revenue FROM order_seats os JOIN orders o ON os.order_id=o.id JOIN showtimes s ON o.showtime_id=s.id JOIN films f ON s.film_id=f.id GROUP BY f.id ORDER BY tickets DESC LIMIT 4")->fetchAll();
+
+// PERBAIKAN: Recent Orders menggunakan LEFT JOIN agar Guest & FnB Only muncul
+$recentOrdersSql = "SELECT o.*, COALESCE(u.name, o.guest_name) as cname, f.title 
+                    FROM orders o 
+                    LEFT JOIN users u ON o.user_id = u.id 
+                    LEFT JOIN showtimes s ON o.showtime_id = s.id 
+                    LEFT JOIN films f ON s.film_id = f.id 
+                    ORDER BY o.created_at DESC LIMIT 5";
+$recentOrders = $db->query($recentOrdersSql)->fetchAll();
+
+// Film Terlaris
+$topFilms = $db->query("SELECT f.title, COUNT(os.id) as tickets, COALESCE(SUM(o.total_amount),0) as revenue 
+                        FROM order_seats os 
+                        JOIN orders o ON os.order_id=o.id 
+                        JOIN showtimes s ON o.showtime_id=s.id 
+                        JOIN films f ON s.film_id=f.id 
+                        WHERE o.payment_status='paid'
+                        GROUP BY f.id ORDER BY tickets DESC LIMIT 4")->fetchAll();
+
 $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pending'")->fetchColumn();
+
+// Tentukan halaman aktif untuk sidebar
+$active = 'dashboard';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -411,6 +442,12 @@ $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pend
         <a href="films.php" class="nav-link ' . ($active === 'films' ? 'active' : '') . '"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0" />
           </svg> Kelola Film</a>
+        <a href="schedulesfilm.php" class="nav-link ' . ($active === 'schedulesfilm' ? 'active' : '') . '"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>Jadwal Film</a>
         <a href="menu.php" class="nav-link '.($active==='menu'?'active':'').'"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
           </svg> Kelola Menu</a>

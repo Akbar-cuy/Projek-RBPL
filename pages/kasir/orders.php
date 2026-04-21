@@ -9,7 +9,8 @@ $search = trim($_GET['q'] ?? '');
 $pendingCount = $db->query("SELECT COUNT(*) FROM orders WHERE order_status='pending'")->fetchColumn();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify'])) {
-    $db->prepare("UPDATE orders SET order_status='confirmed' WHERE id=?")->execute([$_POST['oid']]);
+    $db->prepare("UPDATE orders SET order_status='confirmed', payment_status='paid' WHERE id=?")
+       ->execute([$_POST['oid']]);
     header("Location: orders.php");
     exit;
 }
