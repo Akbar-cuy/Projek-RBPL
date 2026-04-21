@@ -57,7 +57,6 @@ $topFilms = $db->query("SELECT f.title, COUNT(os.id) as tickets, COALESCE(SUM(o.
                         </svg></div>
                     <div class="stat-label">Total Penjualan</div>
                     <div class="stat-value" style="font-size:1.2rem"><?= formatRupiah($totalRevenue) ?></div>
-                    <div class="stat-trend trend-up">↑ 12.5% dari periode sebelumnya</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon" style="background:rgba(168,85,247,0.15)"><svg width="22" height="22" fill="none" stroke="#a855f7" stroke-width="2" viewBox="0 0 24 24">
@@ -65,7 +64,6 @@ $topFilms = $db->query("SELECT f.title, COUNT(os.id) as tickets, COALESCE(SUM(o.
                         </svg></div>
                     <div class="stat-label">Tiket Terjual</div>
                     <div class="stat-value"><?= $totalTickets ?></div>
-                    <div class="stat-trend trend-up">↑ 8.3%</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon" style="background:rgba(245,158,11,0.15)"><svg width="22" height="22" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24">
@@ -73,7 +71,6 @@ $topFilms = $db->query("SELECT f.title, COUNT(os.id) as tickets, COALESCE(SUM(o.
                         </svg></div>
                     <div class="stat-label">F&B Terjual</div>
                     <div class="stat-value"><?= $totalFnb ?></div>
-                    <div class="stat-trend trend-down">↓ 2.1%</div>
                 </div>
             </div>
 
